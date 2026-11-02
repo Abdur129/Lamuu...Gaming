@@ -1,0 +1,6 @@
+{
+  "name": "DUO CONNECT",
+  "description": "Professional Free Fire Duo Matching & Esports Tournament Platform",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

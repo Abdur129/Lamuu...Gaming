@@ -1,0 +1,349 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Hardened global helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        ('email' in request.auth.token && request.auth.token.email == 'hafezabdurrahman22@gmail.com') ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // 1. Users collection
+    function isValidUser(data) {
+      return data.userId is string && data.userId.size() <= 128 &&
+             data.email is string && data.email.size() <= 200 &&
+             data.role in ['player', 'moderator', 'admin', 'superadmin'] &&
+             data.status in ['active', 'suspended'] &&
+             (!('updatedAt' in data) || data.updatedAt is timestamp);
+    }
+
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isOwner(userId) &&
+                       incoming().userId == request.auth.uid &&
+                       incoming().role == 'player' &&
+                       incoming().status == 'active' &&
+                       incoming().createdAt is timestamp &&
+                       incoming().createdAt <= request.time &&
+                       isValidUser(incoming());
+      allow update: if isOwner(userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().role == existing().role &&
+                       incoming().status == existing().status &&
+                       isValidUser(incoming()) &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['email', 'updatedAt'])
+                    || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Admins metadata collection
+    match /admins/{adminId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // 2. Private Profiles (STRICT PII ISOLATION)
+    function isValidPrivateProfile(data) {
+      return data.userId is string && data.userId.size() <= 128 &&
+             data.fullName is string && data.fullName.size() >= 2 && data.fullName.size() <= 100 &&
+             data.age is int && data.age >= 10 && data.age <= 80 &&
+             data.fullUid is string && data.fullUid.size() >= 5 && data.fullUid.size() <= 50 &&
+             (!('email' in data) || (data.email is string && data.email.size() <= 200)) &&
+             (!('phone' in data) || (data.phone is string && data.phone.size() <= 50)) &&
+             (!('gender' in data) || (data.gender is string && data.gender.size() <= 30)) &&
+             (!('photoUrl' in data) || (data.photoUrl is string && data.photoUrl.size() <= 1000)) &&
+             (!('screenshotUrl' in data) || (data.screenshotUrl is string && data.screenshotUrl.size() <= 1000)) &&
+             (!('updatedAt' in data) || data.updatedAt is timestamp);
+    }
+
+    match /privateProfiles/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isOwner(userId) &&
+                       incoming().userId == request.auth.uid &&
+                       incoming().createdAt is timestamp &&
+                       incoming().createdAt <= request.time &&
+                       isValidPrivateProfile(incoming());
+      allow update: if (isOwner(userId) &&
+                       incoming().userId == existing().userId &&
+                       (!('createdAt' in incoming()) || incoming().createdAt == existing().createdAt) &&
+                       isValidPrivateProfile(incoming()) &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['fullName', 'age', 'email', 'phone', 'gender', 'fullUid', 'photoUrl', 'screenshotUrl', 'updatedAt']))
+                    || isAdmin();
+      allow delete: if isOwner(userId) || isAdmin();
+    }
+
+    // 3. Public Profiles (Matchmaking view)
+    function isValidPublicProfile(data) {
+      return data.userId is string && data.userId.size() <= 128 &&
+             data.ign is string && data.ign.size() >= 2 && data.ign.size() <= 60 &&
+             data.preferredMode is string && data.preferredMode.size() <= 50 &&
+             data.experience is string && data.experience.size() <= 50 &&
+             data.playingStyle is string && data.playingStyle.size() <= 50 &&
+             data.playingSchedule is string && data.playingSchedule.size() <= 50 &&
+             data.language is string && data.language.size() <= 50 &&
+             (!('level' in data) || data.level is int) &&
+             (!('bio' in data) || (data.bio is string && data.bio.size() <= 500)) &&
+             (!('avatar' in data) || (data.avatar is string && data.avatar.size() <= 1000)) &&
+             (!('gender' in data) || (data.gender is string && data.gender.size() <= 30)) &&
+             (!('age' in data) || data.age is int) &&
+             (!('idealPartnerDesc' in data) || (data.idealPartnerDesc is string && data.idealPartnerDesc.size() <= 500)) &&
+             (!('partnerAgeRange' in data) || (data.partnerAgeRange is string && data.partnerAgeRange.size() <= 50)) &&
+             (!('partnerStyle' in data) || (data.partnerStyle is string && data.partnerStyle.size() <= 50)) &&
+             (!('isAvailableForDuo' in data) || data.isAvailableForDuo is bool) &&
+             (!('hasActiveDuo' in data) || data.hasActiveDuo is bool) &&
+             (!('activeDuoPartnerId' in data) || (data.activeDuoPartnerId is string && data.activeDuoPartnerId.size() <= 128)) &&
+             (!('isApproved' in data) || data.isApproved is bool) &&
+             (!('updatedAt' in data) || data.updatedAt is timestamp);
+    }
+
+    match /publicProfiles/{userId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isOwner(userId) &&
+                       incoming().userId == request.auth.uid &&
+                       incoming().createdAt is timestamp &&
+                       incoming().createdAt <= request.time &&
+                       isValidPublicProfile(incoming());
+      allow update: if (isOwner(userId) &&
+                       incoming().userId == existing().userId &&
+                       (!('createdAt' in incoming()) || incoming().createdAt == existing().createdAt) &&
+                       isValidPublicProfile(incoming()) &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'ign', 'level', 'preferredMode', 'experience', 'playingStyle',
+                         'playingSchedule', 'language', 'bio', 'avatar', 'gender', 'age',
+                         'idealPartnerDesc', 'partnerAgeRange', 'partnerStyle',
+                         'isAvailableForDuo', 'hasActiveDuo', 'activeDuoPartnerId', 'updatedAt'
+                       ]))
+                    || isAdmin();
+      allow delete: if isOwner(userId) || isAdmin();
+    }
+
+    // 4. Duo Requests
+    function isValidDuoRequest(data) {
+      return data.fromUserId is string && data.fromUserId.size() <= 128 &&
+             data.toUserId is string && data.toUserId.size() <= 128 &&
+             data.status in ['pending', 'accepted', 'rejected', 'cancelled'] &&
+             (!('fromIgn' in data) || (data.fromIgn is string && data.fromIgn.size() <= 60)) &&
+             (!('toIgn' in data) || (data.toIgn is string && data.toIgn.size() <= 60)) &&
+             (!('compatibilityScore' in data) || data.compatibilityScore is int) &&
+             (!('message' in data) || (data.message is string && data.message.size() <= 500)) &&
+             (!('updatedAt' in data) || data.updatedAt is timestamp);
+    }
+
+    match /duoRequests/{requestId} {
+      allow get: if isSignedIn() && (resource.data.fromUserId == request.auth.uid || resource.data.toUserId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn();
+      allow create: if isSignedIn() &&
+                       incoming().fromUserId == request.auth.uid &&
+                       incoming().status == 'pending' &&
+                       incoming().createdAt is timestamp &&
+                       incoming().createdAt <= request.time &&
+                       isValidDuoRequest(incoming());
+      allow update: if (isSignedIn() &&
+                       (existing().fromUserId == request.auth.uid || existing().toUserId == request.auth.uid) &&
+                       incoming().fromUserId == existing().fromUserId &&
+                       incoming().toUserId == existing().toUserId &&
+                       incoming().createdAt == existing().createdAt &&
+                       isValidDuoRequest(incoming()) &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']))
+                    || isAdmin();
+      allow delete: if isSignedIn() && (resource.data.fromUserId == request.auth.uid || isAdmin());
+    }
+
+    // 5. Duo Matches
+    function isValidDuoMatch(data) {
+      return data.player1Id is string && data.player1Id.size() <= 128 &&
+             data.player2Id is string && data.player2Id.size() <= 128 &&
+             data.status in ['active', 'unmatched'] &&
+             (!('player1Ign' in data) || (data.player1Ign is string && data.player1Ign.size() <= 60)) &&
+             (!('player2Ign' in data) || (data.player2Ign is string && data.player2Ign.size() <= 60)) &&
+             (!('matchSource' in data) || (data.matchSource in ['mutual_request', 'admin_matched'])) &&
+             (!('updatedAt' in data) || data.updatedAt is timestamp);
+    }
+
+    match /duoMatches/{matchId} {
+      allow get: if isSignedIn() && (resource.data.player1Id == request.auth.uid || resource.data.player2Id == request.auth.uid || isAdmin());
+      allow list: if isSignedIn();
+      allow create: if (isSignedIn() && (incoming().player1Id == request.auth.uid || incoming().player2Id == request.auth.uid) &&
+                       incoming().createdAt is timestamp &&
+                       incoming().createdAt <= request.time &&
+                       isValidDuoMatch(incoming()))
+                    || isAdmin();
+      allow update: if (isSignedIn() &&
+                       (existing().player1Id == request.auth.uid || existing().player2Id == request.auth.uid) &&
+                       incoming().createdAt == existing().createdAt &&
+                       isValidDuoMatch(incoming()) &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']))
+                    || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // 6. Tournaments
+    function isValidTournament(data) {
+      return data.title is string && data.title.size() >= 3 && data.title.size() <= 120 &&
+             data.type in ['daily', 'weekly', 'monthly', 'special'] &&
+             data.gameMode is string && data.gameMode.size() <= 50 &&
+             data.format in ['solo', 'duo', 'squad'] &&
+             data.status in ['upcoming', 'registration_open', 'registration_closed', 'ongoing', 'completed', 'cancelled'] &&
+             (!('description' in data) || (data.description is string && data.description.size() <= 1000)) &&
+             (!('entryFee' in data) || (data.entryFee is string && data.entryFee.size() <= 50)) &&
+             (!('prizePool' in data) || (data.prizePool is string && data.prizePool.size() <= 100)) &&
+             (!('rules' in data) || (data.rules is string && data.rules.size() <= 2000)) &&
+             (!('scheduleTime' in data) || (data.scheduleTime is string && data.scheduleTime.size() <= 100)) &&
+             (!('maxParticipants' in data) || data.maxParticipants is int) &&
+             (!('currentParticipants' in data) || data.currentParticipants is int) &&
+             (!('roomId' in data) || (data.roomId is string && data.roomId.size() <= 100)) &&
+             (!('roomPassword' in data) || (data.roomPassword is string && data.roomPassword.size() <= 100)) &&
+             (!('roomDetailsVisible' in data) || data.roomDetailsVisible is bool) &&
+             (!('updatedAt' in data) || data.updatedAt is timestamp);
+    }
+
+    match /tournaments/{tournamentId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isAdmin() &&
+                       incoming().createdAt is timestamp &&
+                       incoming().createdAt <= request.time &&
+                       isValidTournament(incoming());
+      allow update: if isAdmin() &&
+                       incoming().createdAt == existing().createdAt &&
+                       isValidTournament(incoming());
+      allow delete: if isAdmin();
+    }
+
+    // 7. Tournament Registrations
+    function isValidRegistration(data) {
+      return data.tournamentId is string && data.tournamentId.size() <= 128 &&
+             data.userId is string && data.userId.size() <= 128 &&
+             data.teamName is string && data.teamName.size() >= 2 && data.teamName.size() <= 60 &&
+             data.playerIgn is string && data.playerIgn.size() >= 2 && data.playerIgn.size() <= 60 &&
+             data.status in ['pending', 'approved', 'rejected'] &&
+             (!('partnerIgn' in data) || (data.partnerIgn is string && data.partnerIgn.size() <= 60)) &&
+             (!('partnerUserId' in data) || (data.partnerUserId is string && data.partnerUserId.size() <= 128)) &&
+             (!('updatedAt' in data) || data.updatedAt is timestamp);
+    }
+
+    match /tournamentRegistrations/{registrationId} {
+      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || resource.data.partnerUserId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn();
+      allow create: if isSignedIn() &&
+                       incoming().userId == request.auth.uid &&
+                       incoming().status == 'pending' &&
+                       incoming().createdAt is timestamp &&
+                       incoming().createdAt <= request.time &&
+                       isValidRegistration(incoming());
+      allow update: if (isOwner(existing().userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().tournamentId == existing().tournamentId &&
+                       incoming().createdAt == existing().createdAt &&
+                       isValidRegistration(incoming()) &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['teamName', 'partnerIgn', 'partnerUserId', 'updatedAt']))
+                    || isAdmin();
+      allow delete: if isOwner(resource.data.userId) || isAdmin();
+    }
+
+    // 8. Match Results & Leaderboards
+    function isValidMatchResult(data) {
+      return data.tournamentId is string && data.tournamentId.size() <= 128 &&
+             data.teamName is string && data.teamName.size() <= 60 &&
+             data.placement is int &&
+             data.kills is int &&
+             data.totalPoints is int &&
+             (!('playerUids' in data) || (data.playerUids is string && data.playerUids.size() <= 300)) &&
+             (!('matchPoints' in data) || data.matchPoints is int) &&
+             (!('finalRank' in data) || data.finalRank is int) &&
+             (!('published' in data) || data.published is bool) &&
+             (!('updatedAt' in data) || data.updatedAt is timestamp);
+    }
+
+    match /matchResults/{resultId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isAdmin() &&
+                       incoming().createdAt is timestamp &&
+                       incoming().createdAt <= request.time &&
+                       isValidMatchResult(incoming());
+      allow update: if isAdmin() &&
+                       incoming().createdAt == existing().createdAt &&
+                       isValidMatchResult(incoming());
+      allow delete: if isAdmin();
+    }
+
+    // 9. Notifications
+    function isValidNotification(data) {
+      return data.userId is string && data.userId.size() <= 128 &&
+             data.title is string && data.title.size() <= 100 &&
+             data.message is string && data.message.size() <= 500 &&
+             data.read is bool &&
+             (!('type' in data) || (data.type is string && data.type.size() <= 50)) &&
+             (!('actionUrl' in data) || (data.actionUrl is string && data.actionUrl.size() <= 200));
+    }
+
+    match /notifications/{notificationId} {
+      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn();
+      allow create: if (isSignedIn() && incoming().createdAt is timestamp && incoming().createdAt <= request.time && isValidNotification(incoming()))
+                    || isAdmin();
+      allow update: if (isOwner(existing().userId) &&
+                       incoming().userId == existing().userId &&
+                       isValidNotification(incoming()) &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['read']))
+                    || isAdmin();
+      allow delete: if isOwner(resource.data.userId) || isAdmin();
+    }
+
+    // 10. Moderation Reports
+    function isValidReport(data) {
+      return data.reporterId is string && data.reporterId.size() <= 128 &&
+             data.reportedUserId is string && data.reportedUserId.size() <= 128 &&
+             data.reason is string && data.reason.size() <= 100 &&
+             data.status in ['open', 'investigating', 'resolved', 'dismissed'] &&
+             (!('details' in data) || (data.details is string && data.details.size() <= 1000)) &&
+             (!('adminNotes' in data) || (data.adminNotes is string && data.adminNotes.size() <= 1000)) &&
+             (!('updatedAt' in data) || data.updatedAt is timestamp);
+    }
+
+    match /reports/{reportId} {
+      allow get: if isSignedIn() && (resource.data.reporterId == request.auth.uid || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isSignedIn() &&
+                       incoming().reporterId == request.auth.uid &&
+                       incoming().status == 'open' &&
+                       incoming().createdAt is timestamp &&
+                       incoming().createdAt <= request.time &&
+                       isValidReport(incoming());
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+  }
+}

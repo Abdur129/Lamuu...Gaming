@@ -1,0 +1,233 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Basic user record and account status",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["player", "moderator", "admin", "superadmin"] },
+        "status": { "type": "string", "enum": ["active", "suspended"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "email", "role", "status", "createdAt"]
+    },
+    "PrivateProfile": {
+      "title": "PrivateProfile",
+      "description": "Confidential player registration details, PII, and full UID",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "fullName": { "type": "string" },
+        "age": { "type": "integer" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "fullUid": { "type": "string" },
+        "gender": { "type": "string" },
+        "photoUrl": { "type": "string" },
+        "screenshotUrl": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "fullName", "age", "fullUid", "createdAt"]
+    },
+    "PublicProfile": {
+      "title": "PublicProfile",
+      "description": "Approved public duo matching profile and gaming preferences",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "ign": { "type": "string" },
+        "level": { "type": "integer" },
+        "preferredMode": { "type": "string" },
+        "experience": { "type": "string" },
+        "playingStyle": { "type": "string" },
+        "playingSchedule": { "type": "string" },
+        "language": { "type": "string" },
+        "bio": { "type": "string" },
+        "avatar": { "type": "string" },
+        "gender": { "type": "string" },
+        "age": { "type": "integer" },
+        "idealPartnerDesc": { "type": "string" },
+        "partnerAgeRange": { "type": "string" },
+        "partnerStyle": { "type": "string" },
+        "isAvailableForDuo": { "type": "boolean" },
+        "hasActiveDuo": { "type": "boolean" },
+        "activeDuoPartnerId": { "type": "string" },
+        "isApproved": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "ign", "preferredMode", "experience", "playingStyle", "playingSchedule", "language", "createdAt"]
+    },
+    "DuoRequest": {
+      "title": "DuoRequest",
+      "description": "Duo connection request between two players",
+      "type": "object",
+      "properties": {
+        "fromUserId": { "type": "string" },
+        "toUserId": { "type": "string" },
+        "fromIgn": { "type": "string" },
+        "toIgn": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "accepted", "rejected", "cancelled"] },
+        "compatibilityScore": { "type": "integer" },
+        "message": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["fromUserId", "toUserId", "status", "createdAt"]
+    },
+    "DuoMatch": {
+      "title": "DuoMatch",
+      "description": "Active duo relationship after mutual consent",
+      "type": "object",
+      "properties": {
+        "player1Id": { "type": "string" },
+        "player2Id": { "type": "string" },
+        "player1Ign": { "type": "string" },
+        "player2Ign": { "type": "string" },
+        "matchSource": { "type": "string", "enum": ["mutual_request", "admin_matched"] },
+        "status": { "type": "string", "enum": ["active", "unmatched"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["player1Id", "player2Id", "status", "createdAt"]
+    },
+    "Tournament": {
+      "title": "Tournament",
+      "description": "Esports tournament definition and lifecycle",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "type": { "type": "string", "enum": ["daily", "weekly", "monthly", "special"] },
+        "gameMode": { "type": "string" },
+        "format": { "type": "string", "enum": ["solo", "duo", "squad"] },
+        "maxParticipants": { "type": "integer" },
+        "currentParticipants": { "type": "integer" },
+        "entryFee": { "type": "string" },
+        "prizePool": { "type": "string" },
+        "rules": { "type": "string" },
+        "scheduleTime": { "type": "string" },
+        "status": { "type": "string", "enum": ["upcoming", "registration_open", "registration_closed", "ongoing", "completed", "cancelled"] },
+        "roomId": { "type": "string" },
+        "roomPassword": { "type": "string" },
+        "roomDetailsVisible": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "type", "gameMode", "format", "status", "createdAt"]
+    },
+    "TournamentRegistration": {
+      "title": "TournamentRegistration",
+      "description": "Player or team registration for a tournament",
+      "type": "object",
+      "properties": {
+        "tournamentId": { "type": "string" },
+        "userId": { "type": "string" },
+        "teamName": { "type": "string" },
+        "playerIgn": { "type": "string" },
+        "partnerIgn": { "type": "string" },
+        "partnerUserId": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["tournamentId", "userId", "teamName", "playerIgn", "status", "createdAt"]
+    },
+    "MatchResult": {
+      "title": "MatchResult",
+      "description": "Tournament match results and points",
+      "type": "object",
+      "properties": {
+        "tournamentId": { "type": "string" },
+        "teamName": { "type": "string" },
+        "playerUids": { "type": "string" },
+        "placement": { "type": "integer" },
+        "kills": { "type": "integer" },
+        "matchPoints": { "type": "integer" },
+        "totalPoints": { "type": "integer" },
+        "finalRank": { "type": "integer" },
+        "published": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["tournamentId", "teamName", "placement", "kills", "totalPoints", "createdAt"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "User in-app notification",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "type": { "type": "string" },
+        "read": { "type": "boolean" },
+        "actionUrl": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "message", "read", "createdAt"]
+    },
+    "Report": {
+      "title": "Report",
+      "description": "Community moderation report",
+      "type": "object",
+      "properties": {
+        "reporterId": { "type": "string" },
+        "reportedUserId": { "type": "string" },
+        "reason": { "type": "string" },
+        "details": { "type": "string" },
+        "status": { "type": "string", "enum": ["open", "investigating", "resolved", "dismissed"] },
+        "adminNotes": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["reporterId", "reportedUserId", "reason", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Core account record and status"
+    },
+    "/privateProfiles/{userId}": {
+      "schema": "PrivateProfile",
+      "description": "Confidential personal & game data"
+    },
+    "/publicProfiles/{userId}": {
+      "schema": "PublicProfile",
+      "description": "Public matchmaking profile"
+    },
+    "/duoRequests/{requestId}": {
+      "schema": "DuoRequest",
+      "description": "Pairwise duo requests"
+    },
+    "/duoMatches/{matchId}": {
+      "schema": "DuoMatch",
+      "description": "Confirmed duo matches"
+    },
+    "/tournaments/{tournamentId}": {
+      "schema": "Tournament",
+      "description": "Tournament events and details"
+    },
+    "/tournamentRegistrations/{registrationId}": {
+      "schema": "TournamentRegistration",
+      "description": "Tournament entries"
+    },
+    "/matchResults/{resultId}": {
+      "schema": "MatchResult",
+      "description": "Tournament leaderboard match results"
+    },
+    "/notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "Direct player notifications"
+    },
+    "/reports/{reportId}": {
+      "schema": "Report",
+      "description": "Moderation reports"
+    }
+  }
+}
